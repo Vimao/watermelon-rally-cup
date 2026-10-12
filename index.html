@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WRC Season Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>🏁 WRC Season Tracker</h1>
+    <div class="header-right">
+      <span id="connStatus" class="conn-status conn-unknown">łączenie…</span>
+      <button id="refreshBtn" class="btn btn-ghost" title="Odśwież dane">⟳ Odśwież</button>
+      <button id="editApiBtn" class="btn btn-ghost hidden" title="Zmień adres API arkusza">⚙ API</button>
+    </div>
+  </header>
+
+  <!-- Konfiguracja połączenia (API URL) -->
+  <section id="configPanel" class="panel config-panel">
+    <h2>Konfiguracja połączenia</h2>
+    <p class="muted">
+      Wklej adres Web App z Google Apps Script (kończy się na <code>/exec</code>).
+      Zostanie zapisany lokalnie w przeglądarce.
+    </p>
+    <div class="row">
+      <input id="apiUrlInput" type="url" class="input grow"
+             placeholder="https://script.google.com/macros/s/XXXX/exec" />
+      <button id="saveApiUrlBtn" class="btn btn-primary">Zapisz i połącz</button>
+      <button id="cancelApiUrlBtn" class="btn btn-ghost hidden">Anuluj</button>
+    </div>
+    <p id="configError" class="error-text hidden"></p>
+  </section>
+
+  <main id="appMain" class="app-main hidden">
+    <!-- Lewa kolumna: sezony + formularze -->
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>Sezony</h2>
+        <form id="seasonForm" class="stack">
+          <label>
+            Nazwa sezonu
+            <input id="seasonName" class="input" type="text" placeholder="np. Sezon 2026 WRC" required />
+          </label>
+          <button type="submit" class="btn btn-primary">+ Utwórz sezon</button>
+        </form>
+        <ul id="seasonList" class="season-list"></ul>
+      </section>
+
+      <section id="raceFormPanel" class="panel hidden">
+        <h2>Dodaj wyścig</h2>
+        <form id="raceForm" class="stack">
+          <label>
+            Region
+            <input id="raceRegion" class="input" type="text" placeholder="np. Monte Carlo" required />
+          </label>
+          <label>
+            Nazwa trasy
+            <input id="raceTrack" class="input" type="text" placeholder="np. Col de Turini" required />
+          </label>
+          <label>
+            Warunki pogodowe
+            <select id="raceWeather" class="input">
+              <option>Słonecznie</option>
+              <option>Pochmurno</option>
+              <option>Deszcz</option>
+              <option>Śnieg</option>
+              <option>Lód</option>
+              <option>Mgła</option>
+            </select>
+          </label>
+          <button type="submit" class="btn btn-primary">+ Dodaj wyścig</button>
+        </form>
+      </section>
+
+      <section id="resultFormPanel" class="panel hidden">
+        <h2>Dodaj wynik przejazdu</h2>
+        <form id="resultForm" class="stack">
+          <label>
+            Trasa (wyścig)
+            <select id="resultRace" class="input" required></select>
+          </label>
+          <label>
+            Nazwa użytkownika
+            <input id="resultUser" class="input" type="text" placeholder="np. Kowalski" required />
+          </label>
+          <label>
+            Czas przejazdu
+            <div class="time-inputs">
+              <input id="timeMin" class="input time-field" type="number" min="0" placeholder="min" />
+              <span class="time-sep">:</span>
+              <input id="timeSec" class="input time-field" type="number" min="0" max="59" placeholder="sek" />
+              <span class="time-sep">.</span>
+              <input id="timeMs" class="input time-field" type="number" min="0" max="999" placeholder="ms" />
+            </div>
+          </label>
+          <div class="row">
+            <label class="grow">
+              Sterowanie
+              <select id="resultControl" class="input">
+                <option>Kierownica</option>
+                <option>Pad</option>
+                <option>Klawiatura</option>
+              </select>
+            </label>
+            <label class="grow">
+              Skrzynia biegów
+              <select id="resultGearbox" class="input">
+                <option>Manualna</option>
+                <option>Automatyczna</option>
+              </select>
+            </label>
+          </div>
+          <button type="submit" class="btn btn-primary">+ Dodaj wynik</button>
+        </form>
+      </section>
+    </aside>
+
+    <!-- Prawa kolumna: widok danych -->
+    <section class="content">
+      <div class="content-header">
+        <h2 id="contentTitle">Wybierz sezon</h2>
+        <div class="view-toggle hidden" id="viewToggle">
+          <button class="btn btn-toggle active" data-view="season">Cały sezon</button>
+          <button class="btn btn-toggle" data-view="race">Pojedyncza trasa</button>
+        </div>
+      </div>
+
+      <div id="raceSelectorWrap" class="race-selector hidden">
+        <label>
+          Trasa:
+          <select id="raceSelector" class="input"></select>
+        </label>
+      </div>
+
+      <div id="viewArea" class="view-area">
+        <p class="muted empty-hint">Utwórz lub wybierz sezon, aby zobaczyć wyniki.</p>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
