@@ -49,6 +49,17 @@ body {
 .conn-err { color: #ff8e95; border-color: #e6394655; background: #e6394622; }
 .conn-unknown { color: var(--muted); }
 
+.role-badge {
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+}
+.role-editor { color: var(--gold); border-color: #ffd16655; background: #ffd1661a; }
+.role-viewer { color: var(--muted); background: var(--panel-2); }
+
+.config-label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); margin: 10px 0; }
+
 /* Layout */
 .app-main {
   display: grid;

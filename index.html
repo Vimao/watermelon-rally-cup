@@ -10,9 +10,10 @@
   <header class="app-header">
     <h1>🏁 WRC Season Tracker</h1>
     <div class="header-right">
+      <span id="roleBadge" class="role-badge hidden"></span>
       <span id="connStatus" class="conn-status conn-unknown">łączenie…</span>
       <button id="refreshBtn" class="btn btn-ghost" title="Odśwież dane">⟳ Odśwież</button>
-      <button id="editApiBtn" class="btn btn-ghost hidden" title="Zmień adres API arkusza">⚙ API</button>
+      <button id="editApiBtn" class="btn btn-ghost hidden" title="Zmień adres API / token">⚙ API</button>
     </div>
   </header>
 
@@ -26,6 +27,14 @@
     <div class="row">
       <input id="apiUrlInput" type="url" class="input grow"
              placeholder="https://script.google.com/macros/s/XXXX/exec" />
+    </div>
+    <label class="config-label">
+      Token edytora <span class="muted">(opcjonalnie — tylko dla osoby z prawem edycji)</span>
+      <input id="editorTokenInput" type="password" class="input"
+             placeholder="pozostaw puste dla trybu tylko do odczytu"
+             autocomplete="off" />
+    </label>
+    <div class="row">
       <button id="saveApiUrlBtn" class="btn btn-primary">Zapisz i połącz</button>
       <button id="cancelApiUrlBtn" class="btn btn-ghost hidden">Anuluj</button>
     </div>

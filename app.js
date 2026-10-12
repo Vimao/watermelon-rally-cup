@@ -6,11 +6,17 @@
   'use strict';
 
   var API_URL_KEY = 'wrc_api_url';
+  var EDITOR_TOKEN_KEY = 'wrc_editor_token';
   var POLL_INTERVAL_MS = 8000;
+
+  // Domyślny adres Web App. Zapisany w localStorage URL ma pierwszeństwo,
+  // więc edytor może go nadpisać przez ⚙ API bez zmiany kodu.
+  var DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzM9ry_M69mlbhCAAjTIPXAeGrETDLKVHSzEvsDwkez6z8_BfEWqNEmeelrAckyL_UNDg/exec';
 
   // --- Stan aplikacji ---
   var state = {
-    apiUrl: localStorage.getItem(API_URL_KEY) || '',
+    apiUrl: localStorage.getItem(API_URL_KEY) || DEFAULT_API_URL,
+    editorToken: localStorage.getItem(EDITOR_TOKEN_KEY) || '',
     seasons: [],
     races: [],
     results: [],
@@ -22,17 +28,22 @@
 
   var pollTimer = null;
 
+  // Edytor = token ustawiony. Pusty token => tryb tylko do odczytu.
+  function isEditor() { return !!state.editorToken; }
+
   // --- Skróty DOM ---
   var $ = function (id) { return document.getElementById(id); };
 
   var el = {
     configPanel: $('configPanel'),
     apiUrlInput: $('apiUrlInput'),
+    editorTokenInput: $('editorTokenInput'),
     saveApiUrlBtn: $('saveApiUrlBtn'),
     cancelApiUrlBtn: $('cancelApiUrlBtn'),
     configError: $('configError'),
     appMain: $('appMain'),
     connStatus: $('connStatus'),
+    roleBadge: $('roleBadge'),
     refreshBtn: $('refreshBtn'),
     editApiBtn: $('editApiBtn'),
 
@@ -73,6 +84,8 @@
   }
 
   function apiPost(payload) {
+    // Token edytora dołączany do każdego zapisu (wariant A).
+    payload.token = state.editorToken;
     // text/plain -> brak CORS preflight dla Apps Script
     return fetch(state.apiUrl, {
       method: 'POST',
@@ -86,9 +99,17 @@
       var json;
       try { json = JSON.parse(text); }
       catch (e) { throw new Error('Nieprawidłowa odpowiedź serwera (nie JSON).'); }
-      if (!json.ok) throw new Error(json.error || 'Błąd serwera');
+      if (!json.ok) throw new Error(friendlyError(json.error || 'Błąd serwera'));
       return json.data;
     });
+  }
+
+  // Zamienia techniczne kody błędów backendu na czytelne komunikaty.
+  function friendlyError(msg) {
+    if (/UNAUTHORIZED/.test(msg)) {
+      return 'Brak uprawnień do edycji. Sprawdź token edytora w ⚙ API.';
+    }
+    return msg;
   }
 
   /* ======================= Ładowanie danych ======================= */
@@ -131,9 +152,25 @@
   /* ======================= Render ======================= */
 
   function renderAll() {
+    renderRoleBadge();
     renderSeasonList();
     renderSidebarForms();
     renderContent();
+  }
+
+  function renderRoleBadge() {
+    if (!state.apiUrl) {
+      el.roleBadge.classList.add('hidden');
+      return;
+    }
+    el.roleBadge.classList.remove('hidden');
+    if (isEditor()) {
+      el.roleBadge.className = 'role-badge role-editor';
+      el.roleBadge.textContent = '✎ Edytor';
+    } else {
+      el.roleBadge.className = 'role-badge role-viewer';
+      el.roleBadge.textContent = '👁 Tylko odczyt';
+    }
   }
 
   function renderSeasonList() {
@@ -149,34 +186,40 @@
       var raceCount = state.races.filter(function (r) { return r.seasonId === s.seasonId; }).length;
       var li = document.createElement('li');
       li.className = 'season-item' + (s.seasonId === state.selectedSeasonId ? ' active' : '');
+      var delBtnHtml = isEditor() ? '<button class="icon-btn" title="Usuń sezon">🗑</button>' : '';
       li.innerHTML =
         '<div>' +
           '<div class="season-name"></div>' +
           '<div class="season-meta">' + raceCount + ' tras</div>' +
-        '</div>' +
-        '<button class="icon-btn" title="Usuń sezon">🗑</button>';
+        '</div>' + delBtnHtml;
       li.querySelector('.season-name').textContent = s.name;
       li.addEventListener('click', function (e) {
         if (e.target.classList.contains('icon-btn')) return;
         selectSeason(s.seasonId);
       });
-      li.querySelector('.icon-btn').addEventListener('click', function (e) {
-        e.stopPropagation();
-        confirmDeleteSeason(s);
-      });
+      var delBtn = li.querySelector('.icon-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          confirmDeleteSeason(s);
+        });
+      }
       el.seasonList.appendChild(li);
     });
   }
 
   function renderSidebarForms() {
+    var editor = isEditor();
     var hasSeason = !!state.selectedSeasonId;
-    el.raceFormPanel.classList.toggle('hidden', !hasSeason);
-
     var seasonRaces = racesOfSelectedSeason();
-    el.resultFormPanel.classList.toggle('hidden', !hasSeason || seasonRaces.length === 0);
+
+    // Formularz sezonu i wyścigu tylko dla edytora.
+    el.seasonForm.classList.toggle('hidden', !editor);
+    el.raceFormPanel.classList.toggle('hidden', !editor || !hasSeason);
+    el.resultFormPanel.classList.toggle('hidden', !editor || !hasSeason || seasonRaces.length === 0);
 
     // Lista tras w formularzu wyniku
-    if (hasSeason) {
+    if (editor && hasSeason) {
       fillRaceOptions(el.resultRace, seasonRaces, state.selectedRaceId);
     }
   }
@@ -415,14 +458,15 @@
     left.appendChild(title);
     left.appendChild(sub);
 
-    var delBtn = document.createElement('button');
-    delBtn.className = 'icon-btn';
-    delBtn.title = 'Usuń wyścig';
-    delBtn.textContent = '🗑';
-    delBtn.addEventListener('click', function () { confirmDeleteRace(race); });
-
     header.appendChild(left);
-    header.appendChild(delBtn);
+    if (isEditor()) {
+      var delBtn = document.createElement('button');
+      delBtn.className = 'icon-btn';
+      delBtn.title = 'Usuń wyścig';
+      delBtn.textContent = '🗑';
+      delBtn.addEventListener('click', function () { confirmDeleteRace(race); });
+      header.appendChild(delBtn);
+    }
     block.appendChild(header);
 
     // Wyniki posortowane rosnąco po czasie (najlepszy = najmniejszy)
@@ -486,12 +530,14 @@
       tdGear.querySelector('.tag').textContent = r.gearbox;
 
       var tdDel = document.createElement('td');
-      var rdel = document.createElement('button');
-      rdel.className = 'icon-btn';
-      rdel.title = 'Usuń wynik';
-      rdel.textContent = '✕';
-      rdel.addEventListener('click', function () { confirmDeleteResult(r); });
-      tdDel.appendChild(rdel);
+      if (isEditor()) {
+        var rdel = document.createElement('button');
+        rdel.className = 'icon-btn';
+        rdel.title = 'Usuń wynik';
+        rdel.textContent = '✕';
+        rdel.addEventListener('click', function () { confirmDeleteResult(r); });
+        tdDel.appendChild(rdel);
+      }
 
       tr.appendChild(tdPos);
       tr.appendChild(tdUser);
@@ -677,9 +723,10 @@
     el.editApiBtn.classList.toggle('hidden', show || !state.apiUrl);
   }
 
-  // Otwiera panel konfiguracji z wczytanym bieżącym URL (edycja istniejącego).
+  // Otwiera panel konfiguracji z wczytanym bieżącym URL i tokenem (edycja istniejącego).
   function openConfig() {
     el.apiUrlInput.value = state.apiUrl || '';
+    el.editorTokenInput.value = state.editorToken || '';
     el.configError.classList.add('hidden');
     showConfig(true);
   }
@@ -703,6 +750,15 @@
     state.apiUrl = url;
     localStorage.setItem(API_URL_KEY, url);
 
+    // Token edytora: pusty => tryb tylko do odczytu.
+    var token = el.editorTokenInput.value.trim();
+    state.editorToken = token;
+    if (token) {
+      localStorage.setItem(EDITOR_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(EDITOR_TOKEN_KEY);
+    }
+
     // Po zmianie arkusza wyczyść dane i zaznaczenia ze starego źródła,
     // aby nie pokazywać ich przed pierwszym odświeżeniem z nowego URL.
     if (changed) {
@@ -711,10 +767,11 @@
       state.results = [];
       state.selectedSeasonId = null;
       state.selectedRaceId = null;
-      renderAll();
     }
 
     showConfig(false);
+    // Natychmiast odzwierciedl tryb (edytor/widz) i ewentualne czyszczenie danych.
+    renderAll();
     startPolling();
     refresh();
   }
